@@ -1,0 +1,85 @@
+---
+title: "2020 Popular Vote Election"
+author: "Tanner Hillison"
+date: '2022-11-14'
+output: html_document
+---
+
+Loading data
+```{r}
+require(tidyverse)
+pres <- readRDS("/Users/tanner/Desktop/Data Science/Data/Pres2020_PV.Rds")
+```
+
+
+#Question 1
+Plot the total number of polls per start date in the data. NB: you will have convert `StartDate` to a `date` class with `as.Date()`. Do you observe a noteworthy trend in the number of polls over time?
+```{r}
+pres %>%
+  mutate(converted_start_date = as.Date(StartDate, format = "%m/%d/%y")) %>%
+  ggplot(aes(x = converted_start_date)) + scale_y_continuous(breaks = seq(0, 13, by = 2)) + labs(title = 'Total Number of Polls per Start Date', subtitle = '2020 US Popular Vote Polls', x = 'Start date of poll', y = 'Number of polls') + geom_bar() + theme_bw()
+```
+Yes. The number of polls increase as we get closer to the election.
+
+
+#Question 2
+Plot the average margin of error by start date as a scatter plot + a smoother (`geom_smooth(se = F)`). Do you observe a noteworthy trend in the margin of error over time?
+```{r}
+pres %>%
+  mutate(converted_start_date = as.Date(StartDate, format = "%m/%d/%y")) %>%
+  group_by(converted_start_date) %>%
+  mutate(avg_error = mean(MoE, na.rm = T)) %>%
+  ggplot(aes(x = converted_start_date, y = avg_error)) + geom_point() + geom_smooth(se = F) + labs(title = "Average Margin of Error of Polls by Start Date", subtitle = '2020 US Popular Vote Polls',
+       x = "Start date of polls",
+       y = "Average error of polls")
+```
+Yes. The average margin of error decreases as we get closer to the election.
+
+
+#Question 3
+Calculate the **prediction error** for Biden and Trump such that positive values mean that the poll *overestimated* the candidate's popular vote share (`DemCertVote` for Biden and `RepCertVote` for Trump). Plot the Biden and Trump prediction errors on a single plot using `geom_bar()`, with red indicating Trump and blue indicating Biden (make sure to set alpha to some value less than 1 to increase the transparency!). Do you observe a systematic bias toward one candidate or the other?
+```{r}
+pres <- pres %>%
+  mutate(Biden_poll_error = Biden - DemCertVote) %>%
+  mutate(Trump_poll_error = Trump - RepCertVote) 
+
+pres %>% 
+  ggplot() +
+  geom_bar(aes(x = Biden_poll_error), fill = 'blue', alpha = 0.5) +
+  geom_bar(aes(x = Trump_poll_error), fill = 'red', alpha = 0.5) + labs(title = 'Poll Prediction Error for Biden and Trump', subtitle = '2020 US Popular Vote Polls', x = 'Prediction Error', y = 'Number of Polls') + 
+  geom_vline(xintercept = mean(pres$Biden_poll_error, na.rm = T), color = 'blue') + 
+  geom_vline(xintercept = mean(pres$Trump_poll_error, na.rm = T), color = 'red') + 
+  geom_vline(xintercept = 0, na.rm = T)
+```
+Yes. There is clearly a larger prediction error for Trump than Biden. Also, the most frequent prediction error for Trump predicted him to get 5% less than what he actually got, while the most frequent prediction for Biden was actually no prediction error. This means that there is probably a systematic predication bias toward Biden.
+
+
+#Question 4
+Plot the average prediction error for Trump (red) and Biden (blue) by start date using `geom_point()` and `geom_smooth()`. What pattern do you observe over time, if any?
+```{r}
+pres %>%
+  mutate(converted_start_date = as.Date(StartDate, format = "%m/%d/%y")) %>%
+  group_by(converted_start_date) %>% 
+  ggplot() + 
+  geom_point(aes(x = converted_start_date, y = Biden_poll_error), color = 'blue', alpha = 0.4) + 
+   geom_smooth(aes(x = converted_start_date, Biden_poll_error), color = 'blue', alpha = 0.4) +
+  geom_point(aes(x = converted_start_date, y = Trump_poll_error), color = 'red', alpha = 0.4) +
+  geom_smooth(aes(x = converted_start_date, Trump_poll_error), color = 'red', alpha = 0.4) +
+  labs(title = 'Average Poll Prediction Error by Start Date ', subtitle = '2020 US Popular Vote Polls for Trump and Biden', x = 'Start date of polls', y = 'Average prediction error')
+```
+The prediction error for Biden started around -5 and eventually came close to zero close to election time. The prediction error for Trump also started around -5 and ended just less than -5 for the data we have.
+
+
+#Question 5
+Calculate each poll's bias toward Biden (this should be the prediction error for Biden minus the prediction error for Trump) and plot the distribution. What proportion of polls' prediction error favored Biden over Trump? What does this mean about polling in the United States?
+```{r}
+pres %>%
+  mutate(converted_start_date = as.Date(StartDate, format = "%m/%d/%y")) %>%
+  mutate(bias_toward_biden = Biden_poll_error - Trump_poll_error) %>% ggplot(aes(x = bias_toward_biden)) +
+  geom_bar() +
+  labs(title = 'Bias Toward Biden in the Prediction Polls', subtitle = '2020 US Populate Vote Polls', x = 'Difference in prediction errors (Biden - Trump)', y = 'Number of polls')
+
+pres %>%
+  mutate(bias_toward_biden = Biden_poll_error - Trump_poll_error) %>% summarize(favor_Biden_polls = mean(bias_toward_biden > 0, na.rm = T))
+```
+84.7% of the polls favored Biden. The high prediction error favoring Biden tells us that US polls might tend to be skewed toward Democratic candidates. Also, polls underestimated both candidates.
